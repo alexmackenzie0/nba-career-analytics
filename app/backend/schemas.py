@@ -66,6 +66,24 @@ class RadarResponse(BaseModel):
     series: list[RadarSeries]
 
 
+class CountingGeometrySeries(BaseModel):
+    player_id: int
+    name: str
+    efficiency: float
+    threes: float
+    points: float
+    rebounds: float
+    assists: float
+    steals: float
+    blocks: float
+    turnovers: float
+    distance: float | None = None
+
+
+class CountingGeometryResponse(BaseModel):
+    series: list[CountingGeometrySeries]
+
+
 class LabelResponse(BaseModel):
     label: str
     rationale: str | None = None

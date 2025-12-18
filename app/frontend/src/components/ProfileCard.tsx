@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 
 type Props = {
   player: any;
+  label?: string | null;
 };
 
-export default function ProfileCard({ player }: Props) {
+export default function ProfileCard({ player, label = null }: Props) {
+  const maxUiSeason = 2024;
   const fallback =
     "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjYwIiBoZWlnaHQ9IjE5MCIgdmlld0JveD0iMCAwIDI2MCAxOTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjI2MCIgaGVpZ2h0PSIxOTAiIHJ4PSIxNCIgZmlsbD0iI2VjZWYyZiIvPjxjaXJjbGUgY3g9IjEzMCIgY3k9Ijc2IiByPSI0OCIgZmlsbD0iI2Q5ZGRlMyIvPjxyZWN0IHg9IjYwIiB5PSIxMjQiIHdpZHRoPSIxNDAiIGhlaWdodD0iNjYiIHJ4PSIyMCIgZmlsbD0iI2Q5ZGRlMyIvPjwvc3ZnPg==";
   const playerId = player?.player_id;
@@ -49,20 +51,32 @@ export default function ProfileCard({ player }: Props) {
   };
 
   if (!player) return null;
+  const position = typeof player.position === "string" ? player.position.trim() : "";
+  const showPosition = position.length > 0 && /[a-zA-Z]/.test(position);
+  const showLabel = typeof label === "string" && label.trim().length > 0 && label !== "—";
 
   return (
     <section className="card profile-card">
-      <div className="profile-info">
-        <div>
-          <h3>{player.name}</h3>
-        </div>
+      <div className="profile-hero">
         <img
-          className="headshot"
+          className="headshot headshot-lg"
           src={src}
           alt={player.name}
           referrerPolicy="no-referrer"
           onError={onError}
         />
+        <div className="profile-meta">
+          <div className="player-name">{player.name}</div>
+          <div className="profile-chips">
+            {showPosition && <span className="chip chip-accent">{position}</span>}
+            <span className="chip">
+              {player.from_year ?? "—"}-
+              {player.to_year == null ? "—" : Math.min(Number(player.to_year), maxUiSeason)}
+            </span>
+            {typeof player.season_count === "number" && <span className="chip">{player.season_count} seasons</span>}
+            {showLabel && <span className="chip chip-label">{label}</span>}
+          </div>
+        </div>
       </div>
     </section>
   );

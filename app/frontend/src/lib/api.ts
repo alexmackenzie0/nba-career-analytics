@@ -18,6 +18,18 @@ export async function fetchComps(id: number) {
   return res.json();
 }
 
+export async function fetchCompsCounting(id: number) {
+  const res = await fetch(`${base}/player/${id}/comps_counting`);
+  if (!res.ok) throw new Error(`comps_counting ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCountingGeometry(id: number) {
+  const res = await fetch(`${base}/player/${id}/counting_geometry`);
+  if (!res.ok) throw new Error(`counting_geometry ${res.status}`);
+  return res.json();
+}
+
 export async function fetchLabel(id: number) {
   const res = await fetch(`${base}/player/${id}/label`);
   if (!res.ok) throw new Error(`label ${res.status}`);

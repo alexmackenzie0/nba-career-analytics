@@ -1,7 +1,7 @@
 :root {
   color: #e9edf5;
   background-color: #0a0f1a;
-  font-family: "Inter", "Manrope", system-ui, -apple-system, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
   line-height: 1.6;
 }
 
@@ -35,6 +35,11 @@ h1 {
   letter-spacing: 0.6px;
   font-weight: 800;
   text-transform: uppercase;
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  font-size: 44px;
+  line-height: 1;
+  color: #f8fafc;
+  text-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
 
 h3 {
@@ -42,6 +47,46 @@ h3 {
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: #f8fafc;
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  font-size: 24px;
+}
+
+.app-header .brand-title {
+  background: linear-gradient(90deg, #f97316, #38bdf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-subtitle {
+  font-weight: 600;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 220px auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.control-label {
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #93a4c1;
+  margin-bottom: 6px;
+}
+
+.control-status {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 2px;
+}
+
+.season-select {
+  width: 100%;
 }
 
 .toolbar {
@@ -64,16 +109,14 @@ select {
   font-size: 14px;
   background: #0f172a;
   color: #e2e8f0;
-  border: 1px solid #1f2937;
+  border: 2px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   outline: none;
   box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.12);
 }
 
 .player-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  width: 100%;
 }
 
 .player-search {
@@ -81,10 +124,16 @@ select {
   font-size: 14px;
   background: #0f172a;
   color: #e2e8f0;
-  border: 1px solid #1f2937;
+  border: 2px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   outline: none;
   box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+}
+
+.player-selector-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 10px;
 }
 
 .pill {
@@ -102,18 +151,11 @@ select {
   border: 1.5px solid rgba(248, 113, 113, 0.45);
 }
 
-.profile-card {
-  display: flex;
-  justify-content: space-between;
+.profile-hero {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 18px;
   align-items: center;
-  gap: 14px;
-}
-
-.profile-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
 }
 
 .headshot {
@@ -125,6 +167,51 @@ select {
   padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+.headshot.headshot-lg {
+  width: 160px;
+  height: 160px;
+  padding: 10px;
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.profile-meta .player-name {
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.6px;
+  color: #f8fafc;
+}
+
+.profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.09);
+  color: #e2e8f0;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+
+.chip-accent {
+  background: rgba(249, 115, 22, 0.16);
+  border-color: rgba(249, 115, 22, 0.38);
+}
+
+.chip-label {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.32);
 }
 
 .card {
@@ -183,6 +270,196 @@ select {
   color: #e2e8f0;
 }
 
+.similar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.similar-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.75), rgba(11, 16, 32, 0.9));
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.similar-rank {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  letter-spacing: 0.6px;
+  color: rgba(248, 250, 252, 0.9);
+  background: rgba(249, 115, 22, 0.18);
+  border: 1.5px solid rgba(249, 115, 22, 0.38);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.similar-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1.5px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+}
+
+.similar-name {
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.spider-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.spider-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.spider-headshot {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.spider-headshot-lg {
+  width: 78px;
+  height: 78px;
+  border-radius: 24px;
+}
+
+.spider-headshot-xl {
+  width: 104px;
+  height: 104px;
+  border-radius: 30px;
+}
+
+.spider-legend-tree {
+  position: relative;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.spider-legend-top {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 10px;
+}
+
+.spider-legend-bottom {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.spider-legend-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 1;
+}
+
+.legend-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
+}
+
+.legend-node-selected {
+  border-color: rgba(56, 189, 248, 0.32);
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+.legend-node-comp {
+  border-color: rgba(249, 115, 22, 0.22);
+}
+
+.legend-node-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.legend-node-title {
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  letter-spacing: 0.8px;
+  font-size: 16px;
+  color: rgba(248, 250, 252, 0.95);
+  text-transform: uppercase;
+}
+
+.legend-node-name {
+  font-weight: 900;
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.legend-rank {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.6px;
+  color: rgba(248, 250, 252, 0.95);
+  background: rgba(249, 115, 22, 0.18);
+  border: 1.5px solid rgba(249, 115, 22, 0.38);
+}
+
+.spider-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+.spider-swatch-lg {
+  width: 16px;
+  height: 16px;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25);
+}
+
+.spider-legend-text {
+  font-size: 12px;
+  color: rgba(248, 250, 252, 0.92);
+  font-weight: 700;
+}
+
 .muted {
   color: #93a4c1;
 }
@@ -195,9 +472,17 @@ select {
   .row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .profile-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+  .controls {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .control-status {
+    justify-content: flex-start;
+  }
+  .player-selector-row {
+    grid-template-columns: 1fr;
+  }
+  .profile-hero {
+    grid-template-columns: 1fr;
   }
 }

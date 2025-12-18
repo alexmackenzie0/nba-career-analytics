@@ -1,7 +1,9 @@
 import joblib
+import numpy as np
 import pandas as pd
 from pathlib import Path
-from sklearn.decomposition import PCA
+from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
 
 
 class Store:
@@ -115,7 +117,84 @@ class Store:
         # Cast position and name to string to satisfy response model
         self.players_df["position"] = self.players_df["position"].astype(str)
         self.players_df["name"] = self.players_df["name"].astype(str)
+        self.season_count_by_id = dict(
+            zip(self.players_df["player_id"].astype(int).tolist(), self.players_df["season_count"].astype(int).tolist())
+        )
         self.sim = joblib.load(str(self.sim_path)) if self.sim_path.exists() else None
+        self.sim_latest = None
+        if self.sim:
+            try:
+                scaler = self.sim["scaler"]
+                feat_df = self.sim["feature_df"]
+                features = self.sim.get("features", [c for c in feat_df.columns if c not in ["player_id", "season"]])
+                latest_feat = (
+                    feat_df.sort_values("season")
+                    .groupby("player_id", as_index=False)
+                    .tail(1)
+                    .copy()
+                )
+                Xn = scaler.transform(latest_feat[features])
+                nn = NearestNeighbors(metric="euclidean")
+                nn.fit(Xn)
+                self.sim_latest = {
+                    "nn": nn,
+                    "scaler": scaler,
+                    "features": features,
+                    "player_ids": latest_feat["player_id"].astype(int).to_list(),
+                    "latest_feat": latest_feat[["player_id"] + features].copy(),
+                }
+            except Exception as e:
+                print(f"[sim_latest] build failed: {e}")
+                self.sim_latest = None
+
+        # Counting-stats similarity space (geometry of box score rates only).
+        # Uses each player's latest season row (season < 2025, gp > 0).
+        self.counting_sim = None
+        self.counting_sim_error = None
+        self._ensure_counting_sim()
+
+    def _ensure_counting_sim(self):
+        if self.counting_sim is not None:
+            return
+        try:
+            latest = (
+                self.df[(self.df["season"] < 2025) & (self.df["gp"] > 0)]
+                .sort_values("season")
+                .groupby("player_id")
+                .tail(1)
+                .copy()
+            )
+            features = [
+                "ts_pct",  # efficiency
+                "fg3_per_game",  # threes
+                "pts_per_game",  # points
+                "reb_per_game",  # rebounds
+                "ast_per_game",  # assists
+                "stl_per_game",  # steals
+                "blk_per_game",  # blocks
+                "tov_per_game",  # turnovers
+            ]
+            X = latest[features].fillna(0.0)
+            scaler = StandardScaler()
+            Xn = scaler.fit_transform(X)
+            nn = NearestNeighbors(metric="euclidean")
+            nn.fit(Xn)
+            norm = 1.0 / (1.0 + np.exp(-Xn))
+            pids = latest["player_id"].astype(int).to_list()
+            geometry_by_id = {pid: norm[i] for i, pid in enumerate(pids)}
+            self.counting_sim = {
+                "nn": nn,
+                "scaler": scaler,
+                "features": features,
+                "player_ids": pids,
+                "latest": latest[["player_id", "season"] + features].copy(),
+                "geometry_by_id": geometry_by_id,
+            }
+        except Exception as e:
+            # Keep the rest of the app running even if this optional model fails.
+            self.counting_sim_error = str(e)
+            print(f"[counting_sim] build failed: {e}")
+            self.counting_sim = None
 
     def players(self):
         # Return full set; frontend can choose to filter (e.g., season_count >= 3).
@@ -196,6 +275,40 @@ class Store:
         return g.to_dict("records")
 
     def comps(self, player_id: int, k: int):
+        # Prefer a player-level similarity space (one vector per player) for stability.
+        if self.sim_latest:
+            nn = self.sim_latest["nn"]
+            scaler = self.sim_latest["scaler"]
+            features = self.sim_latest["features"]
+            latest_feat = self.sim_latest["latest_feat"]
+
+            row = latest_feat[latest_feat.player_id == player_id]
+            if row.empty:
+                return []
+            Xn = scaler.transform(row[features])
+            dist, idx = nn.kneighbors(Xn, n_neighbors=min(k + 20, len(latest_feat)))
+
+            out = []
+            for d, i in zip(dist[0], idx[0]):
+                pid = int(latest_feat.iloc[i].player_id)
+                if pid == player_id:
+                    continue
+                if self.season_count_by_id.get(pid, 0) < 3:
+                    continue
+                name = self.players_df.loc[self.players_df.player_id == pid, "name"]
+                out.append(
+                    {
+                        "player_id": pid,
+                        "name": name.iloc[0] if not name.empty else "Unknown",
+                        "distance": float(d),
+                    }
+                )
+                if len(out) >= k:
+                    break
+            for idx_rank, item in enumerate(out, start=1):
+                item["similarity_rank"] = idx_rank
+            return out
+
         if not self.sim:
             return []
         scaler = self.sim["scaler"]
@@ -213,6 +326,9 @@ class Store:
             pid = int(feat_df.iloc[i].player_id)
             if pid == player_id:
                 continue
+            # Keep comps aligned with the selectable player list (>= 3 seasons with games played).
+            if self.season_count_by_id.get(pid, 0) < 3:
+                continue
             # keep the closest season distance per player_id
             if pid not in seen or d < seen[pid]["distance"]:
                 name = self.players_df.loc[self.players_df.player_id == pid, "name"]
@@ -227,6 +343,98 @@ class Store:
         for idx_rank, item in enumerate(sorted_res, start=1):
             item["similarity_rank"] = idx_rank
         return sorted_res
+
+    def comps_counting(self, player_id: int, k: int):
+        self._ensure_counting_sim()
+        if not self.counting_sim:
+            raise RuntimeError(f"counting_sim unavailable: {self.counting_sim_error or 'unknown error'}")
+        nn = self.counting_sim["nn"]
+        scaler = self.counting_sim["scaler"]
+        features = self.counting_sim["features"]
+        player_ids = self.counting_sim["player_ids"]
+        if player_id not in player_ids:
+            return []
+
+        g = (
+            self.df[(self.df.player_id == player_id) & (self.df.season < 2025) & (self.df.gp > 0)]
+            .sort_values("season")
+            .tail(1)
+        )
+        if g.empty:
+            return []
+        Xn = scaler.transform(g[features].fillna(0.0))
+
+        dist, idx = nn.kneighbors(Xn, n_neighbors=min(k + 50, len(player_ids)))
+        out = []
+        for d, i in zip(dist[0], idx[0]):
+            pid = int(player_ids[i])
+            if pid == player_id:
+                continue
+            if self.season_count_by_id.get(pid, 0) < 3:
+                continue
+            name = self.players_df.loc[self.players_df.player_id == pid, "name"]
+            out.append(
+                {
+                    "player_id": pid,
+                    "name": name.iloc[0] if not name.empty else "Unknown",
+                    "distance": float(d),
+                }
+            )
+            if len(out) >= k:
+                break
+        for idx_rank, item in enumerate(out, start=1):
+            item["similarity_rank"] = idx_rank
+        return out
+
+    def counting_geometry(self, player_id: int, k: int):
+        """
+        Return normalized (0-1) 8-axis geometry values for the selected player
+        and its top counting-stats comps. Similarity distance is Euclidean in
+        standardized (z) space; we map z -> (0,1) via logistic for the UI.
+        """
+        self._ensure_counting_sim()
+        if not self.counting_sim:
+            raise RuntimeError(f"counting_sim unavailable: {self.counting_sim_error or 'unknown error'}")
+
+        comps = self.comps_counting(player_id, k)
+        ids = [player_id] + [c["player_id"] for c in comps]
+        dist_by_id = {c["player_id"]: c["distance"] for c in comps}
+
+        geometry_by_id = self.counting_sim.get("geometry_by_id") or {}
+
+        def name_for(pid: int) -> str:
+            name = self.players_df.loc[self.players_df.player_id == pid, "name"]
+            return name.iloc[0] if not name.empty else str(pid)
+
+        def row(pid: int):
+            v = geometry_by_id.get(int(pid))
+            if v is None:
+                return None
+            # features order is fixed above
+            return {
+                "player_id": int(pid),
+                "name": name_for(int(pid)),
+                "efficiency": float(v[0]),
+                "threes": float(v[1]),
+                "points": float(v[2]),
+                "rebounds": float(v[3]),
+                "assists": float(v[4]),
+                "steals": float(v[5]),
+                "blocks": float(v[6]),
+                "turnovers": float(v[7]),
+                "distance": float(dist_by_id.get(int(pid))) if int(pid) in dist_by_id else None,
+            }
+
+        series = []
+        sel = row(player_id)
+        if sel:
+            series.append(sel)
+        for c in comps:
+            r = row(c["player_id"])
+            if r:
+                series.append(r)
+
+        return {"series": series}
 
     def label(self, player_id: int):
         g = self.df[(self.df.player_id == player_id) & (self.df.season < 2025)]

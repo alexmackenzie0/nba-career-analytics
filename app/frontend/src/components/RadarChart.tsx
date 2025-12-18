@@ -31,23 +31,29 @@ export default function RadarChart({ data }: Props) {
   const center = size / 2;
   const radius = size / 2 - 30;
 
-  // Normalize values per axis across all series
+  // Normalize values per axis across all series (min-max) so negative metrics
+  // like value_score still render meaningfully.
+  const minPerAxis: Record<string, number> = {};
   const maxPerAxis: Record<string, number> = {};
   axes.forEach((a) => {
     const vals = data.series
       .map((s) => s[a.key])
-      .filter((v) => v !== null && v !== undefined) as number[];
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+    const minVal = vals.length ? Math.min(...vals) : 0;
     const maxVal = vals.length ? Math.max(...vals) : 1;
-    maxPerAxis[a.key] = maxVal || 1;
+    minPerAxis[a.key] = Number.isFinite(minVal) ? minVal : 0;
+    maxPerAxis[a.key] = Number.isFinite(maxVal) ? maxVal : 1;
   });
 
   const colors = ["#f97316", "#38bdf8", "#a855f7", "#22c55e", "#f59e0b"];
 
   const buildPath = (series: Series) => {
     const coords = axes.map((axis, idx) => {
-      const raw = series[axis.key] ?? 0;
-      const max = maxPerAxis[axis.key] || 1;
-      const val = Math.min(raw / max, 1);
+      const raw = typeof series[axis.key] === "number" && Number.isFinite(series[axis.key]) ? (series[axis.key] as number) : 0;
+      const min = minPerAxis[axis.key] ?? 0;
+      const max = maxPerAxis[axis.key] ?? 1;
+      const span = max - min || 1;
+      const val = Math.max(0, Math.min((raw - min) / span, 1));
       const angle = (Math.PI * 2 * idx) / axes.length - Math.PI / 2;
       const x = center + Math.cos(angle) * radius * val;
       const y = center + Math.sin(angle) * radius * val;
@@ -102,9 +108,11 @@ export default function RadarChart({ data }: Props) {
             <g key={s.player_id}>
               <path d={path} fill={color + "33"} stroke={color} strokeWidth={2} />
               {axes.map((axis, i) => {
-                const raw = s[axis.key] ?? 0;
-                const max = maxPerAxis[axis.key] || 1;
-                const val = Math.min(raw / max, 1);
+                const raw = typeof s[axis.key] === "number" && Number.isFinite(s[axis.key]) ? (s[axis.key] as number) : 0;
+                const min = minPerAxis[axis.key] ?? 0;
+                const max = maxPerAxis[axis.key] ?? 1;
+                const span = max - min || 1;
+                const val = Math.max(0, Math.min((raw - min) / span, 1));
                 const angle = (Math.PI * 2 * i) / axes.length - Math.PI / 2;
                 const x = center + Math.cos(angle) * radius * val;
                 const y = center + Math.sin(angle) * radius * val;

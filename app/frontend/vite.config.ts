@@ -7,8 +7,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/players": "http://127.0.0.1:8001",
-      "/player": "http://127.0.0.1:8001"
+      "/players": "http://127.0.0.1:8000",
+      "/player": "http://127.0.0.1:8000"
     }
   }
 });

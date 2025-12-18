@@ -7,8 +7,8 @@ from .schemas import (
     SimilarPlayer,
     LabelResponse,
     ProjectionPoint,
-    EmbeddingResponse,
     RadarResponse,
+    CountingGeometryResponse,
 )
 
 app = FastAPI(title="NBA Career Analytics")
@@ -28,6 +28,22 @@ def trajectory(player_id: int):
 @app.get("/player/{player_id}/comps", response_model=list[SimilarPlayer])
 def comps(player_id: int, k: int = 3):
     return store.comps(player_id, k)
+
+
+@app.get("/player/{player_id}/comps_counting", response_model=list[SimilarPlayer])
+def comps_counting(player_id: int, k: int = 3):
+    try:
+        return store.comps_counting(player_id, k)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.get("/player/{player_id}/counting_geometry", response_model=CountingGeometryResponse)
+def counting_geometry(player_id: int, k: int = 3):
+    try:
+        return store.counting_geometry(player_id, k)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @app.get("/player/{player_id}/label", response_model=LabelResponse)

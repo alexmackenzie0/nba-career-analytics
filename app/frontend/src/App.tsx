@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchPlayers, fetchTrajectory, fetchComps, fetchLabel, fetchProjection, fetchRadar } from "./lib/api";
+import {
+  fetchPlayers,
+  fetchTrajectory,
+  fetchComps,
+  fetchCountingGeometry,
+  fetchLabel,
+  fetchProjection,
+  fetchRadar,
+} from "./lib/api";
 import PlayerSelector from "./components/PlayerSelector";
 import SimilarList from "./components/SimilarList";
-import LabelCard from "./components/LabelCard";
 import ProjectionTable from "./components/ProjectionTable";
 import CareerChart from "./components/CareerChart";
 import ProfileCard from "./components/ProfileCard";
 import RadarChart from "./components/RadarChart";
+import CountingGeometrySpider from "./components/CountingGeometrySpider";
 
 type TrajectoryPoint = {
   season: number;
@@ -42,7 +50,11 @@ export default function App() {
     [players, selected]
   );
   const [trajectory, setTrajectory] = useState<TrajectoryPoint[]>([]);
+  const [countingCompTrajectory, setCountingCompTrajectory] = useState<TrajectoryPoint[]>([]);
+  const [topCountingComp, setTopCountingComp] = useState<{ player_id: number; name: string } | null>(null);
   const [comps, setComps] = useState<any[]>([]);
+  const [countingGeometry, setCountingGeometry] = useState<{ series: any[] }>({ series: [] });
+  const [countingStatus, setCountingStatus] = useState<string | null>(null);
   const [label, setLabel] = useState<string>("");
   const [projection, setProjection] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -116,6 +128,10 @@ export default function App() {
     if (!selected) return;
     setLoading(true);
     setError(null);
+    setCountingCompTrajectory([]);
+    setTopCountingComp(null);
+    setCountingGeometry({ series: [] });
+    setCountingStatus(null);
     Promise.all([
       fetchTrajectory(selected),
       fetchComps(selected),
@@ -131,6 +147,22 @@ export default function App() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
 
+    fetchCountingGeometry(selected)
+      .then((g) => {
+        setCountingGeometry(g);
+        const firstComp = Array.isArray(g?.series) ? g.series[1] : null;
+        if (firstComp?.player_id) {
+          setTopCountingComp({ player_id: firstComp.player_id, name: firstComp.name });
+          fetchTrajectory(firstComp.player_id)
+            .then((ct) => setCountingCompTrajectory(ct))
+            .catch(() => setCountingCompTrajectory([]));
+        }
+      })
+      .catch((err) => {
+        setCountingGeometry({ series: [] });
+        setCountingStatus(err?.message ?? "counting_geometry unavailable");
+      });
+
     // Fetch radar separately so it doesn't block the main data.
     fetchRadar(selected)
       .then((r) => setRadar(r))
@@ -139,16 +171,21 @@ export default function App() {
 
   return (
     <div className="container">
-      <header>
-        <h1>NBA Career Analytics</h1>
-        <div className="toolbar">
-          <label>
-            Player:
+      <header className="app-header">
+        <div className="brand">
+          <h1 className="brand-title">NBA Career Analytics</h1>
+          <div className="brand-subtitle muted">Career arcs • comps • projections</div>
+        </div>
+
+        <div className="controls">
+          <div className="control">
+            <div className="control-label">Player</div>
             <PlayerSelector players={filteredPlayers} value={selected} onChange={setSelected} />
-          </label>
-          <label>
-            Season:
+          </div>
+          <div className="control">
+            <div className="control-label">Season Filter</div>
             <select
+              className="season-select"
               value={seasonFilter === "all" ? "all" : String(seasonFilter)}
               onChange={(e) => {
                 const v = e.target.value;
@@ -162,14 +199,15 @@ export default function App() {
                 </option>
               ))}
             </select>
-          </label>
-          {loading && <span className="pill">Loading…</span>}
-          {error && <span className="pill error">Error: {error}</span>}
+          </div>
+          <div className="control-status">
+            {loading && <span className="pill">Loading…</span>}
+            {error && <span className="pill error">Error: {error}</span>}
+          </div>
         </div>
       </header>
 
-      <ProfileCard player={selectedPlayer} />
-      <LabelCard label={label} />
+      <ProfileCard player={selectedPlayer} label={label} />
 
       <section className="card">
         <h3>Trajectory</h3>
@@ -200,8 +238,12 @@ export default function App() {
         </div>
       </section>
 
-      <CareerChart trajectory={trajectory} />
-      <SimilarList comps={comps} />
+      <CareerChart
+        title="Composite Similarity"
+        trajectory={trajectory}
+      />
+
+      <CountingGeometrySpider data={countingGeometry} errorMessage={countingStatus} />
       <RadarChart data={radar} />
       {has2024Season && <ProjectionTable projection={projection} />}
     </div>
