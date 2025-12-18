@@ -59,6 +59,7 @@ MarkupSafe==3.0.3
 matplotlib-inline==0.2.1
 mistune==3.1.4
 narwhals==2.13.0
+nba_api==1.11.3
 nbclient==0.10.2
 nbconvert==7.16.6
 nbformat==5.10.4
@@ -120,3 +121,6 @@ webcolors==25.10.0
 webencodings==0.5.1
 websocket-client==1.9.0
 widgetsnbextension==4.0.15
+fastapi
+uvicorn
+duckdb
