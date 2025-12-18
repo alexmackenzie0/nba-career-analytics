@@ -9,11 +9,9 @@ import {
   fetchRadar,
 } from "./lib/api";
 import PlayerSelector from "./components/PlayerSelector";
-import SimilarList from "./components/SimilarList";
 import ProjectionTable from "./components/ProjectionTable";
 import CareerChart from "./components/CareerChart";
 import ProfileCard from "./components/ProfileCard";
-import RadarChart from "./components/RadarChart";
 import CountingGeometrySpider from "./components/CountingGeometrySpider";
 
 type TrajectoryPoint = {
@@ -50,8 +48,6 @@ export default function App() {
     [players, selected]
   );
   const [trajectory, setTrajectory] = useState<TrajectoryPoint[]>([]);
-  const [countingCompTrajectory, setCountingCompTrajectory] = useState<TrajectoryPoint[]>([]);
-  const [topCountingComp, setTopCountingComp] = useState<{ player_id: number; name: string } | null>(null);
   const [comps, setComps] = useState<any[]>([]);
   const [countingGeometry, setCountingGeometry] = useState<{ series: any[] }>({ series: [] });
   const [countingStatus, setCountingStatus] = useState<string | null>(null);
@@ -128,8 +124,6 @@ export default function App() {
     if (!selected) return;
     setLoading(true);
     setError(null);
-    setCountingCompTrajectory([]);
-    setTopCountingComp(null);
     setCountingGeometry({ series: [] });
     setCountingStatus(null);
     Promise.all([
@@ -150,13 +144,6 @@ export default function App() {
     fetchCountingGeometry(selected)
       .then((g) => {
         setCountingGeometry(g);
-        const firstComp = Array.isArray(g?.series) ? g.series[1] : null;
-        if (firstComp?.player_id) {
-          setTopCountingComp({ player_id: firstComp.player_id, name: firstComp.name });
-          fetchTrajectory(firstComp.player_id)
-            .then((ct) => setCountingCompTrajectory(ct))
-            .catch(() => setCountingCompTrajectory([]));
-        }
       })
       .catch((err) => {
         setCountingGeometry({ series: [] });
@@ -170,11 +157,10 @@ export default function App() {
   }, [selected]);
 
   return (
-    <div className="container">
-      <header className="app-header">
+    <div className="container dashboard-screen">
+      <header className="app-header selector-panel">
         <div className="brand">
-          <h1 className="brand-title">NBA Career Analytics</h1>
-          <div className="brand-subtitle muted">Career arcs • comps • projections</div>
+          <h1 className="brand-title">NBA Player Profile</h1>
         </div>
 
         <div className="controls">
@@ -207,10 +193,8 @@ export default function App() {
         </div>
       </header>
 
-      <ProfileCard player={selectedPlayer} label={label} />
-
-      <section className="card">
-        <h3>Trajectory</h3>
+      <section className="card trajectory-card stats-panel">
+        <h3>Box Stats</h3>
         <div className="table">
           <div className="row header">
             <span>Season</span><span>Age</span><span>GP</span><span>MPG</span>
@@ -236,16 +220,23 @@ export default function App() {
             </div>
           ))}
         </div>
+
+        {has2024Season && (
+          <details className="projection-details">
+            <summary className="muted small">Projection</summary>
+            <ProjectionTable projection={projection} />
+          </details>
+        )}
       </section>
 
-      <CareerChart
-        title="Composite Similarity"
-        trajectory={trajectory}
-      />
+      <aside className="right-panel">
+        <ProfileCard player={selectedPlayer} label={label} />
+        <CountingGeometrySpider data={countingGeometry} errorMessage={countingStatus} />
+      </aside>
 
-      <CountingGeometrySpider data={countingGeometry} errorMessage={countingStatus} />
-      <RadarChart data={radar} />
-      {has2024Season && <ProjectionTable projection={projection} />}
+      <footer className="dashboard-footer">
+        <CareerChart title="Career Trajectory" trajectory={trajectory} showSubtitle={false} svgHeight="100%" />
+      </footer>
     </div>
   );
 }

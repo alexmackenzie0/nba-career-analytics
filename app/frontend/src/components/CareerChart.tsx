@@ -5,6 +5,8 @@ type Point = {
 
 type Props = {
   title?: string;
+  showSubtitle?: boolean;
+  svgHeight?: number | string;
   trajectory: { season: number; value_score?: number | null; annotation?: string | null }[];
   comparisonTrajectory?: { season: number; value_score?: number | null }[];
   comparisonName?: string | null;
@@ -13,6 +15,8 @@ type Props = {
 // Simple SVG line chart using the composite value_score as the seasonal success metric.
 export default function CareerChart({
   title = "Chart",
+  showSubtitle = true,
+  svgHeight = 260,
   trajectory,
   comparisonTrajectory = [],
   comparisonName = null,
@@ -44,13 +48,21 @@ export default function CareerChart({
   const padY = (maxS - minS) * 0.1 || 1;
 
   const width = 640;
-  const height = 240;
+  // Slightly taller viewBox + larger bottom padding prevents axis labels from being clipped
+  // when the chart is constrained into a short dashboard footer.
+  const height = 270;
+  const pad = { left: 24, right: 22, top: 22, bottom: 40 };
+
   const xScale = (s: number) =>
-    ((s - minSeason) / (maxSeason - minSeason || 1)) * (width - 40) + 20;
+    ((s - minSeason) / (maxSeason - minSeason || 1)) * (width - pad.left - pad.right) + pad.left;
   const yScale = (v: number) => {
     const min = minS - padY;
     const max = maxS + padY;
-    return height - 20 - ((v - min) / (max - min || 1)) * (height - 40);
+    return (
+      height -
+      pad.bottom -
+      ((v - min) / (max - min || 1)) * (height - pad.top - pad.bottom)
+    );
   };
 
   const coords = points.map((p) => [xScale(p.season), yScale(p.success as number)]);
@@ -99,8 +111,10 @@ export default function CareerChart({
   return (
     <section className="card">
       <h3>{title}</h3>
-      <p className="muted small">Seasonal success metric: composite value score (impact + availability + load).</p>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="260">
+      {showSubtitle && (
+        <p className="muted small">Seasonal success metric: composite value score (impact + availability + load).</p>
+      )}
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={svgHeight}>
         <defs>
           <linearGradient id="successLine" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#f97316" />
@@ -210,25 +224,49 @@ export default function CareerChart({
         )}
 
         {/* axes */}
-        <line x1={20} y1={height - 20} x2={width - 20} y2={height - 20} stroke="rgba(226,232,240,0.35)" />
-        <line x1={20} y1={20} x2={20} y2={height - 20} stroke="rgba(226,232,240,0.35)" />
+        <line
+          x1={pad.left}
+          y1={height - pad.bottom}
+          x2={width - pad.right}
+          y2={height - pad.bottom}
+          stroke="rgba(226,232,240,0.35)"
+        />
+        <line
+          x1={pad.left}
+          y1={pad.top}
+          x2={pad.left}
+          y2={height - pad.bottom}
+          stroke="rgba(226,232,240,0.35)"
+        />
         {ticks.map((yr) => {
           const x = xScale(yr);
           return (
             <g key={yr}>
-              <line x1={x} y1={height - 20} x2={x} y2={height - 16} stroke="rgba(226,232,240,0.35)" />
-              <text x={x} y={height - 4} fontSize="10" textAnchor="middle" fill="rgba(147,164,193,0.9)">
+              <line
+                x1={x}
+                y1={height - pad.bottom}
+                x2={x}
+                y2={height - pad.bottom + 4}
+                stroke="rgba(226,232,240,0.35)"
+              />
+              <text
+                x={x}
+                y={height - pad.bottom + 18}
+                fontSize="10"
+                textAnchor="middle"
+                fill="rgba(147,164,193,0.9)"
+              >
                 {yr}
               </text>
             </g>
           );
         })}
         <text
-          x={8}
+          x={10}
           y={height / 2}
           fontSize="10"
           fill="rgba(147,164,193,0.9)"
-          transform={`rotate(-90 8 ${height / 2})`}
+          transform={`rotate(-90 10 ${height / 2})`}
         >
           Success Metric
         </text>

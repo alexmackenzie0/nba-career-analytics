@@ -54,6 +54,18 @@ export default function ProfileCard({ player, label = null }: Props) {
   const position = typeof player.position === "string" ? player.position.trim() : "";
   const showPosition = position.length > 0 && /[a-zA-Z]/.test(position);
   const showLabel = typeof label === "string" && label.trim().length > 0 && label !== "—";
+  const displayedSeasonCount = (() => {
+    const played: unknown = player.seasons_played;
+    if (Array.isArray(played)) {
+      const count = played.filter((s) => typeof s === "number" && s <= maxUiSeason).length;
+      return count > 0 ? count : null;
+    }
+    const raw = typeof player.season_count === "number" ? player.season_count : null;
+    if (raw == null || Number.isNaN(raw)) return null;
+    const toYear = player.to_year != null ? Number(player.to_year) : null;
+    const adjusted = toYear != null && toYear > maxUiSeason ? raw - 1 : raw;
+    return Math.max(0, adjusted);
+  })();
 
   return (
     <section className="card profile-card">
@@ -73,7 +85,11 @@ export default function ProfileCard({ player, label = null }: Props) {
               {player.from_year ?? "—"}-
               {player.to_year == null ? "—" : Math.min(Number(player.to_year), maxUiSeason)}
             </span>
-            {typeof player.season_count === "number" && <span className="chip">{player.season_count} seasons</span>}
+            {displayedSeasonCount != null && (
+              <span className="chip">
+                {displayedSeasonCount} {displayedSeasonCount === 1 ? "season" : "seasons"}
+              </span>
+            )}
             {showLabel && <span className="chip chip-label">{label}</span>}
           </div>
         </div>

@@ -6,6 +6,7 @@ from .schemas import (
     TrajectoryPoint,
     SimilarPlayer,
     LabelResponse,
+    LabelSummaryResponse,
     ProjectionPoint,
     RadarResponse,
     CountingGeometryResponse,
@@ -49,6 +50,11 @@ def counting_geometry(player_id: int, k: int = 3):
 @app.get("/player/{player_id}/label", response_model=LabelResponse)
 def label(player_id: int):
     return store.label(player_id)
+
+
+@app.get("/labels/summary", response_model=LabelSummaryResponse)
+def labels_summary():
+    return store.label_summary()
 
 
 @app.get("/player/{player_id}/projection", response_model=list[ProjectionPoint])

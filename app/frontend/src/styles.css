@@ -19,6 +19,123 @@ body {
   padding: 32px 18px 72px;
 }
 
+.container.dashboard-screen {
+  max-width: none;
+  margin: 0;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 35vh 1fr;
+  grid-template-areas:
+    "selector right"
+    "footer right"
+    "stats right";
+  gap: 14px;
+  padding: 10px 10px;
+  overflow: hidden;
+}
+
+.container.dashboard-screen .card {
+  margin-top: 0;
+}
+
+.selector-panel {
+  grid-area: selector;
+}
+
+.stats-panel {
+  grid-area: stats;
+}
+
+.right-panel {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.dashboard-footer {
+  grid-area: footer;
+  min-height: 0;
+}
+
+.dashboard-footer .card {
+  height: 100%;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dashboard-footer svg {
+  display: block;
+  flex: 1;
+  min-height: 0;
+}
+
+.dashboard-footer h3 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.trajectory-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.trajectory-card .table {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.counting-geometry-card {
+  flex: 1;
+  min-height: 0;
+}
+
+.projection-details {
+  margin-top: 10px;
+}
+
+.projection-details summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.dashboard {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.dashboard .card {
+  margin-top: 0;
+}
+
+.dash-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.dashboard .trajectory-card .table {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.trajectory-card .row.header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
 header {
   display: flex;
   flex-direction: column;
@@ -52,10 +169,14 @@ h3 {
 }
 
 .app-header .brand-title {
-  background: linear-gradient(90deg, #f97316, #38bdf8);
+  /* Condensed, jersey-style headline font (matches the player-name look). */
+  background: linear-gradient(180deg, #ffe2bf 0%, #ffb86b 18%, #f97316 55%, #c2410c 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  font-family: "Bebas Neue", "Inter", system-ui, sans-serif;
+  letter-spacing: 0.9px;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 
 .brand-subtitle {
@@ -246,16 +367,28 @@ select {
   color: #cbd5e1;
 }
 
+.trajectory-card .row {
+  grid-template-columns: repeat(14, minmax(52px, 1fr));
+  gap: 4px;
+}
+
+.trajectory-card .row.header {
+  padding: 6px 6px;
+  gap: 4px;
+}
+
 .row:nth-child(odd) {
   background: rgba(255, 255, 255, 0.02);
 }
 
 .row.header {
   font-weight: 800;
-  background: linear-gradient(90deg, rgba(249, 115, 22, 0.45), rgba(59, 130, 246, 0.45));
+  /* Opaque header so scrolled rows never show through */
+  background: linear-gradient(90deg, rgba(249, 115, 22, 0.92), rgba(59, 130, 246, 0.92));
   color: #f8fafc;
   letter-spacing: 0.5px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
 }
 
 .list {
@@ -372,7 +505,7 @@ select {
 
 .spider-legend-bottom {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
   margin-top: 14px;
 }
@@ -392,7 +525,7 @@ select {
   padding: 12px 14px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.06);
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
 }
 
@@ -449,8 +582,8 @@ select {
 }
 
 .spider-swatch-lg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25);
 }
 
@@ -484,5 +617,15 @@ select {
   }
   .profile-hero {
     grid-template-columns: 1fr;
+  }
+  .container.dashboard-screen {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr 35vh auto;
+    grid-template-areas:
+      "selector"
+      "right"
+      "footer"
+      "stats";
+    padding: 10px 8px;
   }
 }

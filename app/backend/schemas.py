@@ -90,6 +90,16 @@ class LabelResponse(BaseModel):
     method: str
 
 
+class LabelCount(BaseModel):
+    label: str
+    count: int
+
+
+class LabelSummaryResponse(BaseModel):
+    total_players: int
+    labels: list[LabelCount]
+
+
 class ProjectionPoint(BaseModel):
     season: int
     age: float | None

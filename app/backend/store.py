@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
+from collections import Counter
 
 
 class Store:
@@ -148,22 +149,29 @@ class Store:
                 self.sim_latest = None
 
         # Counting-stats similarity space (geometry of box score rates only).
-        # Uses each player's latest season row (season < 2025, gp > 0).
+        # Uses each player's peak-season row (season < 2025, gp > 0), where
+        # "peak" is defined as the season with the highest MPG. This avoids
+        # late-career/low-minute seasons dominating the similarity space.
         self.counting_sim = None
         self.counting_sim_error = None
         self._ensure_counting_sim()
+        self._label_summary_cache = None
 
     def _ensure_counting_sim(self):
         if self.counting_sim is not None:
             return
         try:
-            latest = (
-                self.df[(self.df["season"] < 2025) & (self.df["gp"] > 0)]
-                .sort_values("season")
-                .groupby("player_id")
-                .tail(1)
-                .copy()
-            )
+            pool = self.df[(self.df["season"] < 2025) & (self.df["gp"] > 0)].copy()
+            # Use a modest games-played floor to reduce weird "peak" picks from
+            # tiny samples. Falls back to all seasons for a player if needed.
+            pool_sized = pool[pool["gp"] >= 20].copy()
+            if pool_sized.empty:
+                pool_sized = pool
+
+            pool_sized["_mpg_for_peak"] = pool_sized["mpg"].fillna(0.0)
+            idx = pool_sized.groupby("player_id")["_mpg_for_peak"].idxmax()
+            peak = pool_sized.loc[idx].drop(columns=["_mpg_for_peak"]).copy()
+            peak = peak.sort_values(["player_id", "season"])
             features = [
                 "ts_pct",  # efficiency
                 "fg3_per_game",  # threes
@@ -174,20 +182,20 @@ class Store:
                 "blk_per_game",  # blocks
                 "tov_per_game",  # turnovers
             ]
-            X = latest[features].fillna(0.0)
+            X = peak[features].fillna(0.0)
             scaler = StandardScaler()
             Xn = scaler.fit_transform(X)
             nn = NearestNeighbors(metric="euclidean")
             nn.fit(Xn)
             norm = 1.0 / (1.0 + np.exp(-Xn))
-            pids = latest["player_id"].astype(int).to_list()
+            pids = peak["player_id"].astype(int).to_list()
             geometry_by_id = {pid: norm[i] for i, pid in enumerate(pids)}
             self.counting_sim = {
                 "nn": nn,
                 "scaler": scaler,
                 "features": features,
                 "player_ids": pids,
-                "latest": latest[["player_id", "season"] + features].copy(),
+                "peak": peak[["player_id", "season"] + features].copy(),
                 "geometry_by_id": geometry_by_id,
             }
         except Exception as e:
@@ -436,11 +444,13 @@ class Store:
 
         return {"series": series}
 
-    def label(self, player_id: int):
-        g = self.df[(self.df.player_id == player_id) & (self.df.season < 2025)]
-        if g.empty:
-            return {"label": "Unknown", "method": "heuristic"}
-        seasons_played = g["season"].nunique()
+    def _label_for_player_group(self, g: pd.DataFrame) -> tuple[str, str | None]:
+        """
+        Return an "AI-ish" human-readable label based on career peaks/availability.
+        This is intentionally heuristic and stable (no network/LLM dependency).
+        """
+        seasons_played = int(g["season"].nunique())
+
         # Peaks and averages to avoid bias to last healthy prime year
         peak_val = g["value_score"].max(skipna=True)
         peak_impact = g["impact_score"].max(skipna=True)
@@ -449,7 +459,12 @@ class Store:
         peak_ts = g["ts_pct"].max(skipna=True)
         peak_pts_pg = g["pts_per_game"].max(skipna=True)
         peak_fg3_pg = g["fg3_per_game"].max(skipna=True)
+        peak_reb_pg = g["reb_per_game"].max(skipna=True)
+        peak_ast_pg = g["ast_per_game"].max(skipna=True)
+        peak_stl_pg = g["stl_per_game"].max(skipna=True)
+        peak_blk_pg = g["blk_per_game"].max(skipna=True)
         peak_stl_blk = (g["stl_per_game"] + g["blk_per_game"]).max(skipna=True)
+        peak_mpg = g["mpg"].max(skipna=True)
         avg_availability = g["availability"].mean(skipna=True)
         latest_gp = g.sort_values("season").iloc[-1].gp if not g.empty else 0
 
@@ -464,33 +479,104 @@ class Store:
         peak_ts = nz(peak_ts)
         peak_pts_pg = nz(peak_pts_pg)
         peak_fg3_pg = nz(peak_fg3_pg)
+        peak_reb_pg = nz(peak_reb_pg)
+        peak_ast_pg = nz(peak_ast_pg)
+        peak_stl_pg = nz(peak_stl_pg)
+        peak_blk_pg = nz(peak_blk_pg)
         peak_stl_blk = nz(peak_stl_blk)
+        peak_mpg = nz(peak_mpg)
         avg_availability = nz(avg_availability)
         latest_gp = nz(latest_gp)
 
-        label = "Depth piece"
-        rationale = None
+        is_franchise = peak_val > 1.2 and avg_availability > 0.65 and seasons_played >= 8
+        is_star = peak_val > 0.9 and avg_availability > 0.55
 
+        # High-level edge cases
         if seasons_played <= 2 and latest_gp < 30:
-            label = "Developing prospect"
-        elif avg_availability < 0.35 and (peak_val > 0.6 or peak_offload > 0.35):
-            label = "Injury-limited talent"
-        elif peak_val > 1.2 and avg_availability > 0.65 and seasons_played >= 8:
+            return (
+                "Developing prospect",
+                f"{seasons_played} seasons played; latest GP={latest_gp:.0f}",
+            )
+        if avg_availability < 0.35 and (peak_val > 0.6 or peak_offload > 0.35):
+            return (
+                "Injury-limited talent",
+                f"avg availability={avg_availability:.2f}; peak value={peak_val:.2f}",
+            )
+
+        # Archetype signals (peak season)
+        playmaker = peak_ast_pg >= 7.5
+        scorer = peak_pts_pg >= 24.0
+        shooter = peak_fg3_pg >= 2.8
+        rim_protector = peak_blk_pg >= 2.0
+        stopper = peak_stl_pg >= 1.7 and peak_pts_pg < 16.0
+        rebounder = peak_reb_pg >= 11.0
+        three_and_d = peak_fg3_pg >= 1.8 and peak_stl_blk >= 2.0 and peak_pts_pg < 18.0
+        stretch_big = peak_fg3_pg >= 1.6 and peak_reb_pg >= 6.5 and peak_blk_pg < 1.8
+
+        label = "Depth piece"
+        if is_franchise:
             label = "Franchise cornerstone"
-        elif peak_val > 0.9 and avg_availability > 0.6:
+        elif is_star and playmaker:
+            label = "All-star playmaker"
+        elif is_star and scorer and peak_ts >= 0.56:
+            label = "All-star scorer"
+        elif is_star:
             label = "Impact star"
-        elif peak_val > 0.6 and avg_availability > 0.55:
-            label = "High-value starter"
-        elif peak_val > 0.4 and avg_availability > 0.5 and peak_fg3_pg > 1.5 and peak_stl_blk > 1.0:
-            label = "3-and-D glue"
+        elif three_and_d:
+            label = "3-and-D wing"
+        elif rim_protector and peak_reb_pg >= 8.0:
+            label = "Rim-protecting anchor"
+        elif rebounder:
+            label = "Glass-cleaning rebounder"
+        elif stretch_big:
+            label = "Stretch big"
+        elif shooter and peak_pts_pg < 18.0:
+            label = "3-point specialist"
+        elif stopper:
+            label = "Defensive stopper"
         elif peak_offload > 0.4 and avg_availability > 0.4 and peak_pts_pg > 12:
             label = "Scoring spark plug"
-        elif peak_val > 0.3 and avg_availability > 0.45:
-            label = "Reliable role player"
         elif peak_pts75 > 18 and peak_ts < 0.54:
             label = "Volume scorer"
+        elif peak_val > 0.6 and avg_availability > 0.55:
+            label = "High-value starter"
+        elif peak_val > 0.3 and avg_availability > 0.45:
+            label = "Reliable role player"
 
+        rationale = (
+            f"peak mpg={peak_mpg:.1f}, pts/g={peak_pts_pg:.1f}, ast/g={peak_ast_pg:.1f}, "
+            f"reb/g={peak_reb_pg:.1f}, 3pm/g={peak_fg3_pg:.1f}, ts%={peak_ts:.3f}, "
+            f"stl+blk={peak_stl_blk:.1f}, peak value={peak_val:.2f}, avg availability={avg_availability:.2f}"
+        )
+        return label, rationale
+
+    def label(self, player_id: int):
+        g = self.df[(self.df.player_id == player_id) & (self.df.season < 2025)]
+        if g.empty:
+            return {"label": "Unknown", "method": "heuristic"}
+        label, rationale = self._label_for_player_group(g)
         return {"label": label, "method": "heuristic", "rationale": rationale}
+
+    def label_summary(self):
+        """
+        Return counts of all labels across the player universe.
+        Cached for the lifetime of the process (restarts recompute).
+        """
+        if self._label_summary_cache is not None:
+            return self._label_summary_cache
+
+        counts: Counter[str] = Counter()
+        player_ids = self.players_df["player_id"].astype(int).tolist()
+        for pid in player_ids:
+            g = self.df[(self.df.player_id == pid) & (self.df.season < 2025)]
+            if g.empty:
+                continue
+            label, _ = self._label_for_player_group(g)
+            counts[label] += 1
+
+        labels = [{"label": k, "count": int(v)} for k, v in counts.most_common()]
+        self._label_summary_cache = {"total_players": int(sum(counts.values())), "labels": labels}
+        return self._label_summary_cache
 
     def radar(self, player_id: int, k: int):
         comps = self.comps(player_id, k)

@@ -32,8 +32,8 @@ export default function CountingGeometrySpider({ data, errorMessage = null }: Pr
   const series = data?.series ?? [];
   if (series.length === 0) {
     return (
-      <section className="card">
-        <h3>Counting Stat Geometry</h3>
+      <section className="card counting-geometry-card">
+        <h3>Player Geometry</h3>
         {errorMessage ? (
           <p className="pill error">Error: {errorMessage}</p>
         ) : (
@@ -43,20 +43,40 @@ export default function CountingGeometrySpider({ data, errorMessage = null }: Pr
     );
   }
 
-  const size = 380;
+  // Keep the spider compact so it fits nicely in the right dashboard column.
+  // (Selected + top 2 comps.)
+  const visibleSeries = series.slice(0, 3);
+
+  const size = 350;
   const center = size / 2;
   const radius = size / 2 - 34;
   const rings = [0.2, 0.4, 0.6, 0.8, 1];
 
   const seriesColor = (idx: number) => {
-    if (idx === 0) return "#38bdf8"; // selected
-    const palette = ["#f97316", "#a855f7", "#22c55e", "#f59e0b", "#fb7185", "#60a5fa"];
+    // Use a high-contrast, colorblind-friendlier palette (avoid similar hues).
+    if (idx === 0) return "#0077B6"; // selected (darker cyan-blue)
+    const palette = [
+      "#FFB000", // comp 1 (gold)
+      "#D81B60", // comp 2 (magenta)
+      "#00C853", // comp 3 (vivid green)
+      "#7C4DFF", // comp 4 (purple)
+      "#FF6D00", // comp 5 (orange)
+      "#1DE9B6", // comp 6 (teal)
+    ];
     return palette[(idx - 1) % palette.length];
+  };
+
+  const axisValue = (s: Series, axisKey: (typeof axes)[number]["key"]) => {
+    const raw = Math.max(0, Math.min(1, Number(s[axisKey]) || 0));
+    // For turnovers, lower is better. Invert so a player with fewer turnovers
+    // scores "higher" on the radar.
+    if (axisKey === "turnovers") return 1 - raw;
+    return raw;
   };
 
   const buildPath = (s: Series) => {
     const coords = axes.map((axis, idx) => {
-      const v = Math.max(0, Math.min(1, Number(s[axis.key]) || 0));
+      const v = axisValue(s, axis.key);
       const angle = (Math.PI * 2 * idx) / axes.length - Math.PI / 2;
       const x = center + Math.cos(angle) * radius * v;
       const y = center + Math.sin(angle) * radius * v;
@@ -66,12 +86,12 @@ export default function CountingGeometrySpider({ data, errorMessage = null }: Pr
   };
 
   return (
-    <section className="card">
-      <h3>Counting Stat Geometry</h3>
+    <section className="card counting-geometry-card">
+      <h3>Player Geometry</h3>
       <p className="muted small">
-        8-axis profile built from efficiency + counting stats (normalized from similarity z-space).
+        Peak-season profile built from efficiency + counting stats (normalized from similarity z-space).
       </p>
-      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height={size + 10}>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height={size}>
         {rings.map((r, idx) => (
           <polygon
             key={idx}
@@ -105,7 +125,7 @@ export default function CountingGeometrySpider({ data, errorMessage = null }: Pr
           );
         })}
 
-        {series.map((s, idx) => {
+        {visibleSeries.map((s, idx) => {
           const color = seriesColor(idx);
           const isSelected = idx === 0;
           return (
@@ -121,7 +141,7 @@ export default function CountingGeometrySpider({ data, errorMessage = null }: Pr
         })}
       </svg>
 
-      <LegendTree series={series} seriesColor={seriesColor} />
+      <LegendTree series={visibleSeries} seriesColor={seriesColor} />
     </section>
   );
 }
@@ -134,7 +154,7 @@ function LegendTree({
   seriesColor: (idx: number) => string;
 }) {
   const selected = series[0];
-  const comps = series.slice(1, 4);
+  const comps = series.slice(1, 3);
   if (!selected) return null;
 
   const fallback =
