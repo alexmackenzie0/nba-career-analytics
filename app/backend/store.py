@@ -464,7 +464,7 @@ class Store:
 
         return {"series": series}
 
-    def _label_for_player_group(self, g: pd.DataFrame) -> tuple[str, str | None]:
+    def _label_for_player_group(self, g: pd.DataFrame) -> tuple[str, str | None, str | None]:
         """
         Return an "AI-ish" human-readable label based on career peaks/availability.
         This is intentionally heuristic and stable (no network/LLM dependency).
@@ -568,14 +568,41 @@ class Store:
             f"reb/g={peak_reb_pg:.1f}, 3pm/g={peak_fg3_pg:.1f}, ts%={peak_ts:.3f}, "
             f"stl+blk={peak_stl_blk:.1f}, peak value={peak_val:.2f}, avg availability={avg_availability:.2f}"
         )
-        return label, rationale
+        # Injury/availability classification (tiered)
+        # Weight recent seasons higher (rookie/early years often lower minutes/GP).
+        if "gp_share" in g.columns and "mpg" in g.columns:
+            g_sorted = g.sort_values("season")
+            weights = pd.Series(range(1, len(g_sorted) + 1), index=g_sorted.index)
+            def wmean(series):
+                s = series.fillna(0)
+                return float((s * weights).sum() / weights.sum()) if weights.sum() else 0.0
+            gp_share_mean = wmean(g_sorted["gp_share"])
+            mp_mean = wmean(g_sorted["mpg"])
+        else:
+            gp_share_mean = 0.0
+            mp_mean = 0.0
+        inj_label = "Inconsistent availability"
+        if gp_share_mean >= 0.95 and mp_mean >= 30:
+            inj_label = "Iron Man"
+        elif gp_share_mean >= 0.88 and mp_mean >= 28:
+            inj_label = "Workhorse Durable"
+        elif gp_share_mean >= 0.75 and mp_mean >= 26:
+            inj_label = "Reliable Regular"
+        elif gp_share_mean >= 0.55 and mp_mean >= 24:
+            inj_label = "Load Managed"
+        elif gp_share_mean >= 0.35:
+            inj_label = "Made of Glass"
+        else:
+            inj_label = "Never plays"
+
+        return label, rationale, inj_label
 
     def label(self, player_id: int):
         g = self.df[(self.df.player_id == player_id) & (self.df.season < 2025)]
         if g.empty:
             return {"label": "Unknown", "method": "heuristic"}
-        label, rationale = self._label_for_player_group(g)
-        return {"label": label, "method": "heuristic", "rationale": rationale}
+        label, rationale, inj_label = self._label_for_player_group(g)
+        return {"label": label, "method": "heuristic", "rationale": rationale, "injury_label": inj_label}
 
     def label_summary(self):
         """
@@ -656,15 +683,15 @@ class Store:
         base_band = max(0.08, min(0.20, 0.6 * vol + 0.08))  # reasonable bounds
 
         forecasts = []
-        # Build 2025 and 2026 with widening uncertainty
+        # Build 2025, 2026, and 2027 with widening uncertainty
         for idx, (season, age_adj, widen) in enumerate(
-            [(2025, age_adj_2025, 1.0), (2026, age_adj_2026, 1.35)]
+            [(2025, age_adj_2025, 1.0), (2026, age_adj_2026, 1.35), (2027, age_adj_2026, 1.7)]
         ):
             median = base + age_adj + (trend * 0.5 * idx)
-            band_half = base_band * widen
-            p25 = median - band_half / 2
-            p75 = median + band_half / 2
-            forecasts.append({"season": season, "median": float(median), "p25": float(p25), "p75": float(p75)})
+            band_half = base_band * widen * 1.6  # widen to approximate ~80% interval
+            p10 = median - band_half / 2
+            p90 = median + band_half / 2
+            forecasts.append({"season": season, "median": float(median), "p10": float(p10), "p90": float(p90)})
 
         self._forecast_cache[player_id] = forecasts
         return forecasts

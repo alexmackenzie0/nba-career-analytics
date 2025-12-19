@@ -90,6 +90,7 @@ class LabelResponse(BaseModel):
     label: str
     rationale: str | None = None
     method: str
+    injury_label: str | None = None
 
 
 class LabelCount(BaseModel):
@@ -105,8 +106,8 @@ class LabelSummaryResponse(BaseModel):
 class ForecastPoint(BaseModel):
     season: int
     median: float
-    p25: float
-    p75: float
+    p10: float
+    p90: float
 
 
 class ProjectionPoint(BaseModel):

@@ -10,7 +10,7 @@ type Props = {
   trajectory: { season: number; value_score?: number | null; annotation?: string | null }[];
   comparisonTrajectory?: { season: number; value_score?: number | null }[];
   comparisonName?: string | null;
-  forecast?: { season: number; median: number; p25: number; p75: number }[] | null;
+  forecast?: { season: number; median: number; p10: number; p90: number }[] | null;
 };
 
 // Simple SVG line chart using the composite value_score as the seasonal success metric.
@@ -41,7 +41,7 @@ export default function CareerChart({
   }
 
   const forecastSeasons = forecast ? forecast.map((f) => f.season) : [];
-  const forecastValues = forecast ? forecast.flatMap((f) => [f.median, f.p25, f.p75]) : [];
+  const forecastValues = forecast ? forecast.flatMap((f) => [f.median, f.p10, f.p90]) : [];
 
   const allSeasons = [...points.map((p) => p.season), ...compPoints.map((p) => p.season), ...forecastSeasons];
   const minSeason = Math.min(...allSeasons);
@@ -242,18 +242,24 @@ export default function CareerChart({
             medianPts.push([x, yScale(f.median)]);
           });
 
-          const buildPolyline = (pts: number[][]) => pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0]} ${p[1]}`).join(" ");
-          const medianPath = buildPolyline([[...lastActual], ...medianPts]);
+          // Build a smooth path through last actual point and all forecast medians
+          const smoothForecastPath = buildSmoothPath([[...lastActual], ...medianPts]);
 
           return (
             <g>
-              {/* median connection */}
-              <path d={medianPath} fill="none" stroke="rgba(248,250,252,0.85)" strokeWidth={2.4} strokeDasharray="6 4" />
+              {/* median connection (smoothed) */}
+              <path
+                d={smoothForecastPath}
+                fill="none"
+                stroke="rgba(248,250,252,0.85)"
+                strokeWidth={2.4}
+                strokeDasharray="6 4"
+              />
               {sortedF.map((f, idx) => {
                 const x = xScale(f.season);
                 const yMed = yScale(f.median);
-                const yLow = yScale(f.p25);
-                const yHigh = yScale(f.p75);
+                const yLow = yScale(f.p10);
+                const yHigh = yScale(f.p90);
                 return (
                   <g key={`f-${f.season}`}>
                     {/* vertical interval */}

@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 type Props = {
   player: any;
   label?: string | null;
+  injuryLabel?: string | null;
 };
 
-export default function ProfileCard({ player, label = null }: Props) {
+export default function ProfileCard({ player, label = null, injuryLabel = null }: Props) {
   const maxUiSeason = 2024;
   const fallback =
     "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjYwIiBoZWlnaHQ9IjE5MCIgdmlld0JveD0iMCAwIDI2MCAxOTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjI2MCIgaGVpZ2h0PSIxOTAiIHJ4PSIxNCIgZmlsbD0iI2VjZWYyZiIvPjxjaXJjbGUgY3g9IjEzMCIgY3k9Ijc2IiByPSI0OCIgZmlsbD0iI2Q5ZGRlMyIvPjxyZWN0IHg9IjYwIiB5PSIxMjQiIHdpZHRoPSIxNDAiIGhlaWdodD0iNjYiIHJ4PSIyMCIgZmlsbD0iI2Q5ZGRlMyIvPjwvc3ZnPg==";
@@ -95,6 +96,7 @@ export default function ProfileCard({ player, label = null }: Props) {
               </span>
             )}
             {showLabel && <span className="chip chip-label">{label}</span>}
+            {injuryLabel && <span className="chip chip-injury">{injuryLabel}</span>}
           </div>
         </div>
       </div>

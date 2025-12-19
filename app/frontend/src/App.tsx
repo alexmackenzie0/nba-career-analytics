@@ -54,6 +54,7 @@ export default function App() {
   const [countingGeometry, setCountingGeometry] = useState<{ series: any[] }>({ series: [] });
   const [countingStatus, setCountingStatus] = useState<string | null>(null);
   const [label, setLabel] = useState<string>("");
+  const [injuryLabel, setInjuryLabel] = useState<string>("");
   const [projection, setProjection] = useState<any[]>([]);
   const [forecast, setForecast] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
@@ -157,6 +158,7 @@ export default function App() {
         setTrajectory(traj);
         setComps(compList);
         setLabel(lbl?.label || "—");
+        setInjuryLabel(lbl?.injury_label || "");
         setProjection(proj);
         setForecast(fcast);
       })
@@ -264,7 +266,7 @@ export default function App() {
       </section>
 
       <aside className="right-panel">
-        <ProfileCard player={selectedPlayer} label={label} />
+        <ProfileCard player={selectedPlayer} label={label} injuryLabel={injuryLabel} />
         <CountingGeometrySpider data={countingGeometry} errorMessage={countingStatus} />
       </aside>
 

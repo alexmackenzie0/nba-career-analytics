@@ -9,17 +9,48 @@ def main():
     players = players.rename(columns={"person_id": "player_id", "display_first_last": "player_name"})
     players["player_id"] = players["player_id"].astype(int)
 
-    agg = raw.groupby(["player_id", "season_id"]).agg({
-        "team_abbreviation": lambda x: ",".join(sorted(set(x))),
-        "player_age": "mean",
-        "gp": "sum",
-        "min": "sum",
-        "fgm": "sum", "fga": "sum", "fg3m": "sum", "fg3a": "sum",
-        "ftm": "sum", "fta": "sum",
-        "oreb": "sum", "dreb": "sum", "reb": "sum",
-        "ast": "sum", "stl": "sum", "blk": "sum",
-        "tov": "sum", "pf": "sum", "pts": "sum",
-    }).reset_index()
+    rows = []
+    for (pid, season), g in raw.groupby(["player_id", "season_id"]):
+        if (g["team_abbreviation"] == "TOT").any():
+            # If a TOT row exists, use it directly (it already represents the season total).
+            row = g[g["team_abbreviation"] == "TOT"].iloc[0].copy()
+        else:
+            # Otherwise aggregate the team rows once.
+            row = {
+                "player_id": pid,
+                "season_id": season,
+                "team_abbreviation": ",".join(sorted(set(g["team_abbreviation"]))),
+                "player_age": g["player_age"].mean(),
+                "gp": g["gp"].sum(),
+                "min": g["min"].sum(),
+                "fgm": g["fgm"].sum(),
+                "fga": g["fga"].sum(),
+                "fg3m": g["fg3m"].sum(),
+                "fg3a": g["fg3a"].sum(),
+                "ftm": g["ftm"].sum(),
+                "fta": g["fta"].sum(),
+                "oreb": g["oreb"].sum(),
+                "dreb": g["dreb"].sum(),
+                "reb": g["reb"].sum(),
+                "ast": g["ast"].sum(),
+                "stl": g["stl"].sum(),
+                "blk": g["blk"].sum(),
+                "tov": g["tov"].sum(),
+                "pf": g["pf"].sum(),
+                "pts": g["pts"].sum(),
+            }
+            row = pd.Series(row)
+        rows.append(row)
+
+    agg = pd.DataFrame(rows).reset_index(drop=True)
+
+    # Keep only the fields we truly need; drop any duplicate name columns coming from raw.
+    base_cols = [
+        "player_id", "season_id", "team_abbreviation", "player_age", "gp", "min",
+        "fgm", "fga", "fg3m", "fg3a", "ftm", "fta",
+        "oreb", "dreb", "reb", "ast", "stl", "blk", "tov", "pf", "pts",
+    ]
+    agg = agg[base_cols]
 
     agg["season"] = agg["season_id"].str[:4].astype(int)
     denom = (agg["fga"] + 0.44 * agg["fta"]).replace(0, pd.NA)

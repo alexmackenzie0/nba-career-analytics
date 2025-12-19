@@ -68,9 +68,6 @@ export default function CountingGeometrySpider({ data, errorMessage = null }: Pr
 
   const axisValue = (s: Series, axisKey: (typeof axes)[number]["key"]) => {
     const raw = Math.max(0, Math.min(1, Number(s[axisKey]) || 0));
-    // For turnovers, lower is better. Invert so a player with fewer turnovers
-    // scores "higher" on the radar.
-    if (axisKey === "turnovers") return 1 - raw;
     return raw;
   };
 
