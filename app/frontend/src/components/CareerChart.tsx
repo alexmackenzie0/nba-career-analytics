@@ -10,6 +10,7 @@ type Props = {
   trajectory: { season: number; value_score?: number | null; annotation?: string | null }[];
   comparisonTrajectory?: { season: number; value_score?: number | null }[];
   comparisonName?: string | null;
+  forecast?: { season: number; median: number; p25: number; p75: number }[] | null;
 };
 
 // Simple SVG line chart using the composite value_score as the seasonal success metric.
@@ -20,6 +21,7 @@ export default function CareerChart({
   trajectory,
   comparisonTrajectory = [],
   comparisonName = null,
+  forecast = null,
 }: Props) {
   const points: Point[] = trajectory
     .filter((t) => t.value_score !== null && t.value_score !== undefined)
@@ -38,11 +40,18 @@ export default function CareerChart({
     );
   }
 
-  const allSeasons = [...points.map((p) => p.season), ...compPoints.map((p) => p.season)];
+  const forecastSeasons = forecast ? forecast.map((f) => f.season) : [];
+  const forecastValues = forecast ? forecast.flatMap((f) => [f.median, f.p25, f.p75]) : [];
+
+  const allSeasons = [...points.map((p) => p.season), ...compPoints.map((p) => p.season), ...forecastSeasons];
   const minSeason = Math.min(...allSeasons);
   const maxSeason = Math.max(...allSeasons);
 
-  const successes = [...points.map((p) => p.success as number), ...compPoints.map((p) => p.success as number)];
+  const successes = [
+    ...points.map((p) => p.success as number),
+    ...compPoints.map((p) => p.success as number),
+    ...forecastValues,
+  ];
   const minS = Math.min(...successes);
   const maxS = Math.max(...successes);
   const padY = (maxS - minS) * 0.1 || 1;
@@ -222,6 +231,49 @@ export default function CareerChart({
             </text>
           </g>
         )}
+
+        {/* Forecast median path + intuitive 50% interval (p25-p75) as simple vertical bands */}
+        {forecast && forecast.length > 0 && coords.length > 0 && (() => {
+          const sortedF = [...forecast].sort((a, b) => a.season - b.season);
+          const lastActual = coords[coords.length - 1];
+          const medianPts: number[][] = [];
+          sortedF.forEach((f) => {
+            const x = xScale(f.season);
+            medianPts.push([x, yScale(f.median)]);
+          });
+
+          const buildPolyline = (pts: number[][]) => pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0]} ${p[1]}`).join(" ");
+          const medianPath = buildPolyline([[...lastActual], ...medianPts]);
+
+          return (
+            <g>
+              {/* median connection */}
+              <path d={medianPath} fill="none" stroke="rgba(248,250,252,0.85)" strokeWidth={2.4} strokeDasharray="6 4" />
+              {sortedF.map((f, idx) => {
+                const x = xScale(f.season);
+                const yMed = yScale(f.median);
+                const yLow = yScale(f.p25);
+                const yHigh = yScale(f.p75);
+                return (
+                  <g key={`f-${f.season}`}>
+                    {/* vertical interval */}
+                    <line x1={x} x2={x} y1={yHigh} y2={yLow} stroke="rgba(56,189,248,0.6)" strokeWidth={3} />
+                    <circle cx={x} cy={yHigh} r={4} fill="rgba(56,189,248,0.75)" />
+                    <circle cx={x} cy={yLow} r={4} fill="rgba(56,189,248,0.75)" />
+                    {/* soft halo to hint at uncertainty without heavy polygons */}
+                    <circle cx={x} cy={(yHigh + yLow) / 2} r={Math.max(10, (yLow - yHigh) / 2)} fill="rgba(56,189,248,0.10)" />
+                    {/* median point */}
+                    <circle cx={x} cy={yMed} r={6} fill="#38bdf8" opacity={0.95} />
+                    <circle cx={x} cy={yMed} r={9} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={2} />
+                    <text x={x + 10} y={yMed - 6} fontSize="10" fill="rgba(248,250,252,0.9)">
+                      {f.median.toFixed(1)}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })()}
 
         {/* axes */}
         <line

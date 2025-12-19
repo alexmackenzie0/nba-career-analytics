@@ -47,3 +47,9 @@ export async function fetchRadar(id: number) {
   if (!res.ok) throw new Error(`radar ${res.status}`);
   return res.json();
 }
+
+export async function fetchForecast(id: number) {
+  const res = await fetch(`${base}/player/${id}/forecast`);
+  if (!res.ok) throw new Error(`forecast ${res.status}`);
+  return res.json();
+}

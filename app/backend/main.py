@@ -10,6 +10,7 @@ from .schemas import (
     ProjectionPoint,
     RadarResponse,
     CountingGeometryResponse,
+    ForecastPoint,
 )
 
 app = FastAPI(title="NBA Career Analytics")
@@ -60,6 +61,11 @@ def labels_summary():
 @app.get("/player/{player_id}/projection", response_model=list[ProjectionPoint])
 def projection(player_id: int):
     return store.projection(player_id)
+
+
+@app.get("/player/{player_id}/forecast", response_model=list[ForecastPoint] | None)
+def forecast(player_id: int):
+    return store.forecast(player_id)
 
 
 @app.get("/player/{player_id}/radar", response_model=RadarResponse)

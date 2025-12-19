@@ -13,7 +13,8 @@ class Store:
         root = Path(__file__).resolve().parents[2]
         self.parquet = root / "data/clean/player_seasons.parquet"
         self.sim_path = root / "models/similarity.pkl"
-        self.positions_path = root / "data/clean/player_positions.parquet"
+        # Bio/position enrichment (CSV generated externally).
+        self.positions_path = root / "data/clean/player_bio.csv"
 
         # Load full dataset into memory via pandas to avoid duckdb instabilities / segfaults.
         self.df = pd.read_parquet(self.parquet)
@@ -104,9 +105,18 @@ class Store:
         self.players_df = self.players_df.merge(season_counts, on="player_id", how="left")
         self.players_df["season_count"] = self.players_df["season_count"].fillna(0).astype(int)
         self.players_df = self.players_df.merge(seasons_played, on="player_id", how="left")
-        # Merge enriched positions if available
+        # Merge enriched positions (and height/weight) if available
         if self.positions_path.exists():
-            pos_df = pd.read_parquet(self.positions_path)
+            if self.positions_path.suffix.lower() == ".parquet":
+                pos_df = pd.read_parquet(self.positions_path)
+            else:
+                pos_df = pd.read_csv(self.positions_path)
+            # Drop name to avoid duplicate column names after merge
+            if "name" in pos_df.columns:
+                pos_df = pos_df.drop(columns=["name"])
+            # Align expected column names
+            if "position" in pos_df.columns and "primary_position" not in pos_df.columns:
+                pos_df = pos_df.rename(columns={"position": "primary_position"})
             self.players_df = self.players_df.merge(pos_df, on="player_id", how="left")
         else:
             self.players_df["primary_position"] = None
@@ -118,6 +128,14 @@ class Store:
         # Cast position and name to string to satisfy response model
         self.players_df["position"] = self.players_df["position"].astype(str)
         self.players_df["name"] = self.players_df["name"].astype(str)
+        # Drop duplicate columns if any remain
+        self.players_df = self.players_df.loc[:, ~self.players_df.columns.duplicated()]
+        # Clean height/weight types
+        if "height" in self.players_df.columns:
+            self.players_df["height"] = self.players_df["height"].astype(str)
+            self.players_df.loc[self.players_df["height"].isin(["nan", "None"]), "height"] = None
+        if "weight" in self.players_df.columns:
+            self.players_df["weight"] = pd.to_numeric(self.players_df["weight"], errors="coerce")
         self.season_count_by_id = dict(
             zip(self.players_df["player_id"].astype(int).tolist(), self.players_df["season_count"].astype(int).tolist())
         )
@@ -156,6 +174,7 @@ class Store:
         self.counting_sim_error = None
         self._ensure_counting_sim()
         self._label_summary_cache = None
+        self._forecast_cache = {}
 
     def _ensure_counting_sim(self):
         if self.counting_sim is not None:
@@ -206,7 +225,8 @@ class Store:
 
     def players(self):
         # Return full set; frontend can choose to filter (e.g., season_count >= 3).
-        return self.players_df.to_dict("records")
+        clean = self.players_df.replace({pd.NA: None, np.nan: None, np.inf: None, -np.inf: None})
+        return clean.to_dict("records")
 
     def trajectory(self, player_id: int):
         g = self.df[(self.df.player_id == player_id) & (self.df.season < 2025)].copy()
@@ -577,6 +597,77 @@ class Store:
         labels = [{"label": k, "count": int(v)} for k, v in counts.most_common()]
         self._label_summary_cache = {"total_players": int(sum(counts.values())), "labels": labels}
         return self._label_summary_cache
+
+    def forecast(self, player_id: int):
+        """
+        Heuristic forecast for 2025 and 2026 seasonal success (value_score) with a 50% interval.
+        Uses:
+          - Regression to mean of last 2 seasons
+          - Light aging curve (peak ~27, slow decline after 30)
+          - Volatility from last 3 seasons to size the band
+        Returns None if the player doesn't have a 2025 row in the data.
+        """
+        if player_id in self._forecast_cache:
+            return self._forecast_cache[player_id]
+
+        g = self.df[(self.df.player_id == player_id) & (self.df.season < 2025) & (self.df.gp > 0)].copy()
+        has_2025 = (self.df[(self.df.player_id == player_id) & (self.df.season == 2025)]).shape[0] > 0
+        if not has_2025 or g.empty:
+            self._forecast_cache[player_id] = None
+            return None
+
+        g = g.sort_values("season")
+        # Recent seasons for trend
+        recent = g.tail(3)
+        vals = recent["value_score"].dropna().tolist()
+        if not vals:
+            self._forecast_cache[player_id] = None
+            return None
+
+        # Regression to mean of last 2 seasons (weights 0.6 / 0.4)
+        last_two = g.tail(2)["value_score"].fillna(method="ffill").fillna(method="bfill").tolist()
+        if len(last_two) == 1:
+            base = last_two[0]
+            trend = 0.0
+        else:
+            base = 0.6 * last_two[-1] + 0.4 * last_two[-2]
+            trend = last_two[-1] - last_two[-2]
+
+        # Simple aging adjustment around age 27 peak
+        last_age = float(g.iloc[-1]["player_age"]) if "player_age" in g.columns and pd.notna(g.iloc[-1]["player_age"]) else None
+        age_adj_2025 = 0.0
+        age_adj_2026 = 0.0
+        if last_age is not None:
+            def age_delta(age):
+                if age < 23:
+                    return 0.05
+                if 23 <= age < 27:
+                    return 0.02
+                if 27 <= age < 30:
+                    return -0.01
+                if 30 <= age < 33:
+                    return -0.04
+                return -0.08
+            age_adj_2025 = age_delta(last_age + 1)  # next season age
+            age_adj_2026 = age_delta(last_age + 2)
+
+        # Volatility-based band: center around median, width from recent std
+        vol = float(np.std(vals)) if len(vals) > 1 else 0.08
+        base_band = max(0.08, min(0.20, 0.6 * vol + 0.08))  # reasonable bounds
+
+        forecasts = []
+        # Build 2025 and 2026 with widening uncertainty
+        for idx, (season, age_adj, widen) in enumerate(
+            [(2025, age_adj_2025, 1.0), (2026, age_adj_2026, 1.35)]
+        ):
+            median = base + age_adj + (trend * 0.5 * idx)
+            band_half = base_band * widen
+            p25 = median - band_half / 2
+            p75 = median + band_half / 2
+            forecasts.append({"season": season, "median": float(median), "p25": float(p25), "p75": float(p75)})
+
+        self._forecast_cache[player_id] = forecasts
+        return forecasts
 
     def radar(self, player_id: int, k: int):
         comps = self.comps(player_id, k)

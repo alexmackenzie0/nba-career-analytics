@@ -54,6 +54,8 @@ export default function ProfileCard({ player, label = null }: Props) {
   const position = typeof player.position === "string" ? player.position.trim() : "";
   const showPosition = position.length > 0 && /[a-zA-Z]/.test(position);
   const showLabel = typeof label === "string" && label.trim().length > 0 && label !== "—";
+  const height = typeof player.height === "string" ? player.height : null;
+  const weight = player.weight != null ? Number(player.weight) : null;
   const displayedSeasonCount = (() => {
     const played: unknown = player.seasons_played;
     if (Array.isArray(played)) {
@@ -81,6 +83,8 @@ export default function ProfileCard({ player, label = null }: Props) {
           <div className="player-name">{player.name}</div>
           <div className="profile-chips">
             {showPosition && <span className="chip chip-accent">{position}</span>}
+            {height && <span className="chip chip-accent">{height}</span>}
+            {weight && <span className="chip chip-accent">{weight} lb</span>}
             <span className="chip">
               {player.from_year ?? "—"}-
               {player.to_year == null ? "—" : Math.min(Number(player.to_year), maxUiSeason)}

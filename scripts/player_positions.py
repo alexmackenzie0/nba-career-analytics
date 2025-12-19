@@ -22,7 +22,7 @@ OUT_DYNAMIC_CSV = "/Users/alexmackenzie/projects/nba-career-analytics/data/clean
 # Permanent cumulative output (deduped by player_id)
 OUT_PERMANENT_CSV = "/Users/alexmackenzie/projects/nba-career-analytics/data/clean/player_bio.csv"
 # Set the 1-based index to resume from (e.g., 603 means skip first 602 players).
-START_FROM_INDEX = 1
+START_FROM_INDEX = 1200
 # Skip player_ids already present in OUT_PERMANENT_CSV and OUT_DYNAMIC_CSV.
 SKIP_EXISTING = True
 # Pause between requests (seconds) to reduce rate-limit/timeouts.

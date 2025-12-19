@@ -7,6 +7,7 @@ import {
   fetchLabel,
   fetchProjection,
   fetchRadar,
+  fetchForecast,
 } from "./lib/api";
 import PlayerSelector from "./components/PlayerSelector";
 import ProjectionTable from "./components/ProjectionTable";
@@ -42,6 +43,7 @@ export default function App() {
   const [players, setPlayers] = useState<any[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [seasonFilter, setSeasonFilter] = useState<number | "all">("all");
+  const [currentFilter, setCurrentFilter] = useState<"all" | "yes" | "no">("all");
   const maxUiSeason = 2024;
   const selectedPlayer = useMemo(
     () => players.find((p) => p.player_id === selected),
@@ -53,6 +55,7 @@ export default function App() {
   const [countingStatus, setCountingStatus] = useState<string | null>(null);
   const [label, setLabel] = useState<string>("");
   const [projection, setProjection] = useState<any[]>([]);
+  const [forecast, setForecast] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const has2024Season = trajectory.some((t) => t.season === 2024 && (t.gp ?? 0) > 0);
@@ -87,8 +90,25 @@ export default function App() {
   }, [players, maxUiSeason]);
 
   const filteredPlayers = useMemo(() => {
-    if (seasonFilter === "all") return eligiblePlayers;
-    return eligiblePlayers.filter((p) => {
+    let pool = eligiblePlayers;
+    if (currentFilter !== "all") {
+      const want2025 = currentFilter === "yes";
+      pool = pool.filter((p) => {
+        const played: unknown = p.seasons_played;
+        if (Array.isArray(played)) {
+          const has2025 = played.includes(2025);
+          return want2025 ? has2025 : !has2025;
+        }
+        if (p.to_year != null) {
+          const has2025 = Number(p.to_year) >= 2025;
+          return want2025 ? has2025 : !has2025;
+        }
+        return !want2025;
+      });
+    }
+
+    if (seasonFilter === "all") return pool;
+    return pool.filter((p) => {
       const played: unknown = p.seasons_played;
       if (Array.isArray(played)) return played.includes(seasonFilter);
       if (p.from_year != null && p.to_year != null) {
@@ -96,7 +116,7 @@ export default function App() {
       }
       return false;
     });
-  }, [eligiblePlayers, seasonFilter, maxUiSeason]);
+  }, [eligiblePlayers, seasonFilter, maxUiSeason, currentFilter]);
 
   useEffect(() => {
     if (!filteredPlayers.length) return;
@@ -131,12 +151,14 @@ export default function App() {
       fetchComps(selected),
       fetchLabel(selected),
       fetchProjection(selected),
+      fetchForecast(selected).catch(() => null),
     ])
-      .then(([traj, compList, lbl, proj]) => {
+      .then(([traj, compList, lbl, proj, fcast]) => {
         setTrajectory(traj);
         setComps(compList);
         setLabel(lbl?.label || "—");
         setProjection(proj);
+        setForecast(fcast);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -184,6 +206,18 @@ export default function App() {
                   {s}
                 </option>
               ))}
+            </select>
+          </div>
+          <div className="control">
+            <div className="control-label">Current Player (2025)</div>
+            <select
+              className="season-select"
+              value={currentFilter}
+              onChange={(e) => setCurrentFilter(e.target.value as "all" | "yes" | "no")}
+            >
+              <option value="all">All</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
             </select>
           </div>
           <div className="control-status">
@@ -235,7 +269,13 @@ export default function App() {
       </aside>
 
       <footer className="dashboard-footer">
-        <CareerChart title="Career Trajectory" trajectory={trajectory} showSubtitle={false} svgHeight="100%" />
+        <CareerChart
+          title="Career Trajectory"
+          trajectory={trajectory}
+          showSubtitle={false}
+          svgHeight="100%"
+          forecast={forecast}
+        />
       </footer>
     </div>
   );

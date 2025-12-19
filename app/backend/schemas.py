@@ -9,6 +9,8 @@ class PlayerListItem(BaseModel):
     to_year: int | None = None
     season_count: int | None = None
     seasons_played: list[int] | None = None
+    height: str | None = None
+    weight: float | None = None
 
 
 class TrajectoryPoint(BaseModel):
@@ -98,6 +100,13 @@ class LabelCount(BaseModel):
 class LabelSummaryResponse(BaseModel):
     total_players: int
     labels: list[LabelCount]
+
+
+class ForecastPoint(BaseModel):
+    season: int
+    median: float
+    p25: float
+    p75: float
 
 
 class ProjectionPoint(BaseModel):
